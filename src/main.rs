@@ -12,6 +12,7 @@ use teloxide::{
 };
 use tokio::sync::mpsc;
 use warp::Filter;
+use uuid::Uuid;
 
 use reqwest::{StatusCode, Url};
 use tokio_stream::wrappers::UnboundedReceiverStream;
@@ -23,6 +24,15 @@ enum Command {
     Help,
     #[command(description = "Starting bot use")]
     Start,
+    #[command(description = "Adding existing ID.", parse_with="split")]
+    Add{ rattle_id: String},
+    #[command(description = "Removing ID.", parse_with="split")]
+    Remove{ rattle_id: String},
+    #[command(description = "List of all your connected IDs.")]
+    List,
+    #[command(description = "Adding new ID.")]
+    New,
+    
 }
 
 async fn answer(
@@ -33,10 +43,27 @@ async fn answer(
     match command {
         Command::Help => bot.send_message(message.chat.id, Command::descriptions()).await?,
         Command::Start => {
-            let chat_id = message.chat.id;
-            //Saving chat_id
-            bot.send_message(chat_id, format!("Your chat ID is: {}", chat_id)).await?
+            //Save Chat ID
+            bot.send_message(message.chat_id(), format!("Hi! Weclome to the RattleHead bot!\n{}", Command::descriptions())).await?
         },
+        Command::Add{rattle_id} => {
+            //Linking existing ID with Chat ID
+            bot.send_message(message.chat_id(), format!("ID: {} added", rattle_id)).await?
+        },
+        Command::Remove{rattle_id} => {
+            //Remove from DB
+            bot.send_message(message.chat_id(), format!("ID: {} removed", rattle_id)).await?
+        },
+        Command::New => {
+            //Generate new ID
+            let new_rattle_id = Uuid::new_v4().to_string();
+            //Save to the DB
+            bot.send_message(message.chat_id(), format!("New ID: {}. Link", new_rattle_id)).await?
+        },
+        Command::List => {
+            let rattle_id_list = vec!["123".to_string()];
+            bot.send_message(message.chat_id(), format!("ID List:]n {}", rattle_id_list.join("\n"))).await?
+        }
     };
     Ok(())
 }

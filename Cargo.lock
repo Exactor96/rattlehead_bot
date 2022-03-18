@@ -1093,6 +1093,7 @@ dependencies = [
  "teloxide",
  "tokio",
  "tokio-stream",
+ "uuid",
  "warp",
 ]
 
