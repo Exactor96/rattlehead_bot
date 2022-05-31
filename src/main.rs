@@ -142,8 +142,8 @@ async fn answer(
 
 #[tokio::main]
 async fn main() {
-    //teloxide::enable_logging!();
-    log::info!("Starting heroku_ping_pong_bot...");
+    teloxide::enable_logging!();
+    log::info!("Starting rattlehead_bot...");
 
     let bot = Bot::from_env().auto_send();
 
