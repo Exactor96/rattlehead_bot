@@ -47,8 +47,15 @@ async fn answer(
     let config = std::env::var("POSTGRES_CONFIG").unwrap();
 
 
-    let (client, connection) =
-    tokio_postgres::connect(config.as_str(), tokio_postgres::NoTls).await?;
+    let result =
+    tokio_postgres::connect(config.as_str(), tokio_postgres::NoTls).await;
+
+
+    let (client, connection)  = match result {
+        Ok(data) => data,
+        Err(error)=> {println!("{}", error.to_string()); return Ok(());     },
+
+    };
 
     tokio::spawn(async move {
         if let Err(e) = connection.await {
