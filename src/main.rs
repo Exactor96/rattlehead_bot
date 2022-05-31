@@ -122,11 +122,11 @@ async fn answer(
              match result {
                  Ok(rows) => {
 
-                    let mut rattle_id_list: Vec<i32> = Vec::new();
+                    let mut rattle_id_list: Vec<String> = Vec::new();
 
                     for row in rows{
-                        let id = row.get(0);
-                        rattle_id_list.push(id);
+                        let id:i32 = row.get(0);
+                        rattle_id_list.push(id.to_string());
                     }
 
                      bot.send_message(message.chat.id, format!("ID List:\n {}", rattle_id_list.join("\n"))).await?
