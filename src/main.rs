@@ -1,7 +1,7 @@
 use std::str::FromStr;
 use std::{convert::Infallible, env, net::SocketAddr};
 use std::error::Error;
-use std::env;
+use std;
 
 use teloxide::{
     dispatching::{
@@ -18,7 +18,7 @@ use uuid::Uuid;
 
 use reqwest::{StatusCode, Url};
 use tokio_stream::wrappers::UnboundedReceiverStream;
-use tokio_postgres::{Error, NoTls};
+use tokio_postgres;
 
 #[derive(BotCommand, Clone)]
 #[command(rename = "lowercase", description = "These commands are supported:")]
@@ -44,10 +44,10 @@ async fn answer(
     command: Command,
 ) -> Result<(), Box<dyn Error + Send + Sync>> {
 
-    let config = env::var("POSTGRES_CONFIG").unwrap();
+    let config = std::env::var("POSTGRES_CONFIG").unwrap();
 
 
-    let (mut client, connection) =
+    let (client, connection) =
     tokio_postgres::connect(config.as_str(), tokio_postgres::NoTls).await?;
 
     tokio::spawn(async move {
