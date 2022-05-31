@@ -114,8 +114,27 @@ async fn answer(
 
         },
         Command::List => {
-            let rattle_id_list = vec!["123".to_string()];
-            bot.send_message(message.chat.id, format!("ID List:]n {}", rattle_id_list.join("\n"))).await?
+
+            let result = client
+            .query("select external_id from rattle_telegram where chat_id = $1;",
+             &[&message.chat.id]).await;
+ 
+             match result {
+                 Ok(rows) => {
+
+                    let mut rattle_id_list: Vec<i32> = Vec::new();
+
+                    for row in rows{
+                        let id = row.get(0);
+                        rattle_id_list.push(id);
+                    }
+
+                     bot.send_message(message.chat.id, format!("ID List:\n {}", rattle_id_list.join("\n"))).await?
+                    },
+                 Err(error) => bot.send_message(message.chat.id, format!("Something goes wrong.\n {}", error.to_string())).await?,
+             }
+
+
         }
     };
     Ok(())
