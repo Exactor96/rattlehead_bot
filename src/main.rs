@@ -1,5 +1,7 @@
+use std::str::FromStr;
 use std::{convert::Infallible, env, net::SocketAddr};
 use std::error::Error;
+use std::env;
 
 use teloxide::{
     dispatching::{
@@ -16,6 +18,7 @@ use uuid::Uuid;
 
 use reqwest::{StatusCode, Url};
 use tokio_stream::wrappers::UnboundedReceiverStream;
+use tokio_postgres::{Error, NoTls};
 
 #[derive(BotCommand, Clone)]
 #[command(rename = "lowercase", description = "These commands are supported:")]
@@ -40,29 +43,79 @@ async fn answer(
     message: Message,
     command: Command,
 ) -> Result<(), Box<dyn Error + Send + Sync>> {
+
+    let config = env::var("POSTGRES_CONFIG").unwrap();
+
+
+    let (mut client, connection) =
+    tokio_postgres::connect(config.as_str(), tokio_postgres::NoTls).await?;
+
+    tokio::spawn(async move {
+        if let Err(e) = connection.await {
+            eprintln!("connection error: {}", e);
+        }
+    });
+
     match command {
         Command::Help => bot.send_message(message.chat.id, Command::descriptions()).await?,
         Command::Start => {
             //Save Chat ID
-            bot.send_message(message.chat_id(), format!("Hi! Weclome to the RattleHead bot!\n{}", Command::descriptions())).await?
+            bot.send_message(message.chat.id, format!("Hi! Weclome to the RattleHead bot!\n{}", Command::descriptions())).await?
         },
         Command::Add{rattle_id} => {
             //Linking existing ID with Chat ID
-            bot.send_message(message.chat_id(), format!("ID: {} added", rattle_id)).await?
+
+            let new_uuid = Uuid::from_str(rattle_id.as_str());
+
+            match new_uuid {
+                Ok(uuid) => {
+
+
+                    let result = client.query("insert into rattle_telegram (external_id, chat_id) values ($1, $2);", &[&uuid, &message.chat.id]).await;
+
+
+                    match result {
+                        Ok(_) => bot.send_message(message.chat.id, format!("ID: {} added.", rattle_id)).await?,
+                        Err(error) => bot.send_message(message.chat.id, format!("Something goes wrong.\n {}", error.to_string())).await?
+
+                    };
+                },
+                Err(_) =>
+                {
+                    bot.send_message(message.chat.id, format!("{} looks like not UUID.", rattle_id)).await?;
+                }
+            }
+
+
+            bot.send_message(message.chat.id, format!("ID: {} added", rattle_id)).await?
         },
         Command::Remove{rattle_id} => {
             //Remove from DB
-            bot.send_message(message.chat_id(), format!("ID: {} removed", rattle_id)).await?
+            let result = client
+            .query("delete from rattle_telegram where external_id = $1 and chat_id = $2;",
+             &[&rattle_id, &message.chat.id]).await;
+            match result {
+                Ok(_) =>             bot.send_message(message.chat.id, format!("ID: {} removed", rattle_id)).await?,
+                Err(error) => bot.send_message(message.chat.id, format!("Something goes wrong.\n {}", error.to_string())).await?,
+            }
         },
         Command::New => {
             //Generate new ID
             let new_rattle_id = Uuid::new_v4().to_string();
-            //Save to the DB
-            bot.send_message(message.chat_id(), format!("New ID: {}. Link", new_rattle_id)).await?
+            
+           let result = client
+           .query("insert into rattle_telegram (external_id, chat_id) values ($1, $2);",
+            &[&new_rattle_id, &message.chat.id]).await;
+
+            match result {
+                Ok(_) => bot.send_message(message.chat.id, format!("New ID: {}. Link", new_rattle_id)).await?,
+                Err(error) => bot.send_message(message.chat.id, format!("Something goes wrong.\n {}", error.to_string())).await?,
+            }
+
         },
         Command::List => {
             let rattle_id_list = vec!["123".to_string()];
-            bot.send_message(message.chat_id(), format!("ID List:]n {}", rattle_id_list.join("\n"))).await?
+            bot.send_message(message.chat.id, format!("ID List:]n {}", rattle_id_list.join("\n"))).await?
         }
     };
     Ok(())
@@ -70,7 +123,7 @@ async fn answer(
 
 #[tokio::main]
 async fn main() {
-    teloxide::enable_logging!();
+    //teloxide::enable_logging!();
     log::info!("Starting heroku_ping_pong_bot...");
 
     let bot = Bot::from_env().auto_send();
