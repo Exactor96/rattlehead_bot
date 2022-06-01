@@ -14,4 +14,4 @@ warp = "0.3.2"
 reqwest = "0.11.9"
 tokio-stream = "0.1.8"
 uuid = { version = "0.8", features = ["v4"] }
-tokio-postgres = {version="0.7.2", features=["with-uuid-0_8"]}
+sqlx = { version = "0.5", features = [ "runtime-tokio-native-tls" , "postgres", "uuid"] }

@@ -18,7 +18,7 @@ use uuid::Uuid;
 
 use reqwest::{StatusCode, Url};
 use tokio_stream::wrappers::UnboundedReceiverStream;
-use tokio_postgres;
+use sqlx::{self, Row};
 
 #[derive(BotCommand, Clone)]
 #[command(rename = "lowercase", description = "These commands are supported:")]
@@ -44,24 +44,10 @@ async fn answer(
     command: Command,
 ) -> Result<(), Box<dyn Error + Send + Sync>> {
 
-    let config = std::env::var("POSTGRES_CONFIG").unwrap();
+    let uri = std::env::var("DATABASE_URL").unwrap();
 
+    let pool = sqlx::PgPool::connect(uri.as_str()).await?;
 
-    let result =
-    tokio_postgres::connect(config.as_str(), tokio_postgres::NoTls).await;
-
-
-    let (client, connection)  = match result {
-        Ok(data) => data,
-        Err(error)=> {println!("{}", error.to_string()); return Ok(());     },
-
-    };
-
-    tokio::spawn(async move {
-        if let Err(e) = connection.await {
-            eprintln!("connection error: {}", e);
-        }
-    });
 
     match command {
         Command::Help => bot.send_message(message.chat.id, Command::descriptions()).await?,
@@ -78,7 +64,11 @@ async fn answer(
                 Ok(uuid) => {
 
 
-                    let result = client.query("insert into rattle_telegram (external_id, chat_id) values ($1, $2);", &[&uuid, &message.chat.id]).await;
+                    let result = sqlx::query("insert into rattle_telegram (external_id, chat_id) values ($1, $2);")
+                    .bind::<sqlx::types::Uuid>(uuid)
+                    .bind::<i64>(message.chat.id)
+                    .fetch_optional(&pool)
+                    .await;
 
 
                     match result {
@@ -98,9 +88,11 @@ async fn answer(
         },
         Command::Remove{rattle_id} => {
             //Remove from DB
-            let result = client
-            .query("delete from rattle_telegram where external_id = $1 and chat_id = $2;",
-             &[&rattle_id, &message.chat.id]).await;
+            let result = sqlx::query("delete from rattle_telegram where external_id = $1 and chat_id = $2;")
+            .bind(&rattle_id)
+            .bind(message.chat.id)
+            .execute(&pool)
+            .await;
             match result {
                 Ok(_) =>             bot.send_message(message.chat.id, format!("ID: {} removed", rattle_id)).await?,
                 Err(error) => bot.send_message(message.chat.id, format!("Something goes wrong.\n {}", error.to_string())).await?,
@@ -108,11 +100,13 @@ async fn answer(
         },
         Command::New => {
             //Generate new ID
-            let new_rattle_id = Uuid::new_v4().to_string();
+            let new_rattle_id = Uuid::new_v4();
             
-           let result = client
-           .query("insert into rattle_telegram (external_id, chat_id) values ($1, $2);",
-            &[&new_rattle_id, &message.chat.id]).await;
+           let result = sqlx::query("insert into rattle_telegram (external_id, chat_id) values ($1, $2);")
+           .bind::<sqlx::types::Uuid>(new_rattle_id)
+           .bind::<i64>(message.chat.id)
+           .execute(&pool)
+           .await;
 
             match result {
                 Ok(_) => bot.send_message(message.chat.id, format!("New ID: {}. Link", new_rattle_id)).await?,
@@ -122,17 +116,18 @@ async fn answer(
         },
         Command::List => {
 
-            let result = client
-            .query("select external_id from rattle_telegram where chat_id = $1;",
-             &[&message.chat.id]).await;
- 
+            let result = sqlx::query("select external_id from rattle_telegram where chat_id = $1;")
+            .bind::<i64>(message.chat.id)
+            .fetch_all(&pool)
+            .await;
+
              match result {
                  Ok(rows) => {
 
                     let mut rattle_id_list: Vec<String> = Vec::new();
 
                     for row in rows{
-                        let id:i32 = row.get(0);
+                        let id = row.get::<Uuid, _>("external_id");
                         rattle_id_list.push(id.to_string());
                     }
 
