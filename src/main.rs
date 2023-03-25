@@ -166,7 +166,7 @@ pub async fn webhook(bot: AutoSend<Bot>) -> impl update_listeners::UpdateListene
         .parse()
         .expect("PORT value to be integer");
     // Heroku host example .: "heroku-ping-pong-bot.herokuapp.com"
-    let host = env::var("HOST").expect("have HOST env variable");
+    let host = env::var("HOST_WEBHOOK").expect("have HOST env variable");
     let path = format!("bot{}", teloxide_token);
     let url = Url::parse(&format!("https://{}/{}", host, path)).unwrap();
 
